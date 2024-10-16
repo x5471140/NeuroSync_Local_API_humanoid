@@ -35,7 +35,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         return x + self.pe[:x.size(0), :]
 
-# We are mapping sequences of 256 frames of audio features to face blendshapes. Not predicting the next token.
+# We are mapping sequences of 256 frames of audio features to face blendshapes. Not predicting the next token. Batch_first = true breaks things - dont do it.
 
 class Seq2Seq(nn.Module):
     def __init__(self, encoder, decoder, device):
