@@ -8,8 +8,6 @@ The **NeuroSync Local API** allows you to host the audio-to-face blendshape tran
 - Host the model locally for full control
 - Process audio files and generate facial blendshapes
 
-For more details, visit our [YouTube channel](https://www.youtube.com/@animaai_mai) where we provide updates on usage best practises.
-
 ## NeuroSync Model
 
 To generate the blendshapes, you can:
