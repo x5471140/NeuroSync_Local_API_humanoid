@@ -25,6 +25,17 @@ def decode_audio_chunk(audio_chunk, model, device):
         decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
     return decoded_outputs
 
+def linear_blend(previous_chunk, current_chunk, blend_frames):
+    # Create extra frames at the end of the previous_chunk
+    extended_chunk = np.copy(previous_chunk[-blend_frames:])
+    
+    # Blend extended_chunk with the start of current_chunk
+    for i in range(blend_frames):
+        alpha = i / blend_frames
+        current_chunk[i] = (1 - alpha) * extended_chunk[i] + alpha * current_chunk[i]
+    
+    return current_chunk
+
 def concatenate_outputs(all_decoded_outputs, num_frames):
     final_decoded_outputs = np.concatenate(all_decoded_outputs, axis=0)
     final_decoded_outputs = final_decoded_outputs[:num_frames]
@@ -36,17 +47,18 @@ def ensure_2d(final_decoded_outputs):
     return final_decoded_outputs
 
 def process_audio_features(audio_features, model, device, config):
-    # Ensure there are at least 3 frames to remove the first and last safely
     if audio_features.shape[0] < 3:
         raise ValueError("Insufficient frames in audio features. At least 3 frames are required.")
 
-    # Remove the first and last frame
-    audio_features = audio_features[1:-1, :]
+    audio_features = audio_features[1:-1, :]  # Remove first and last frame
 
     frame_length = config['frame_size']  
     num_features = audio_features.shape[1]
     num_frames = audio_features.shape[0]
     all_decoded_outputs = []
+
+    blend_frames = 5  # Number of frames to blend
+    previous_chunk = None
 
     model.eval()
 
@@ -54,12 +66,20 @@ def process_audio_features(audio_features, model, device, config):
         end_idx = min(start_idx + frame_length, num_frames)
         audio_chunk = audio_features[start_idx:end_idx]
         audio_chunk = pad_audio_chunk(audio_chunk, frame_length, num_features)
+
         decoded_outputs = decode_audio_chunk(audio_chunk, model, device)
+
+        if previous_chunk is not None:
+            # Blend between previous chunk and current chunk
+            decoded_outputs = linear_blend(previous_chunk, decoded_outputs, blend_frames)
+
         all_decoded_outputs.append(decoded_outputs[:end_idx - start_idx])
 
+        # Update the previous_chunk with the last few frames for the next blending
+        previous_chunk = decoded_outputs
+
     final_decoded_outputs = concatenate_outputs(all_decoded_outputs, num_frames)
-    
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
-    final_decoded_outputs[:, :61] /= 100  
+    final_decoded_outputs[:, :61] /= 100  # Normalize first 61 features
 
     return final_decoded_outputs
