@@ -57,7 +57,6 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.embedding = nn.Linear(input_dim, hidden_dim)
         self.pos_encoder = PositionalEncoding(hidden_dim)
-        # Set batch_first=True for better performance and to avoid the warning
         encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=num_heads, dropout=dropout, batch_first=True)  
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.use_norm = use_norm
@@ -80,7 +79,6 @@ class Decoder(nn.Module):
         self.output_dim = output_dim
         self.pos_encoder = PositionalEncoding(hidden_dim)
         self.cross_attention = MultiHeadAttention(hidden_dim, num_heads)  
-        # Set batch_first=True for better performance and to avoid the warning
         decoder_layer = nn.TransformerDecoderLayer(d_model=hidden_dim, nhead=num_heads, dropout=dropout, batch_first=True)  
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
         self.fc_output = nn.Linear(hidden_dim, output_dim)
