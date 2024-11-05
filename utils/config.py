@@ -7,5 +7,5 @@ config = {
     'dropout': 0.0,
     'output_dim': 68,
     'input_dim': 26 + 26 + 26 + 1,
-    'frame_size': 64,
+    'frame_size': 128,
 }
