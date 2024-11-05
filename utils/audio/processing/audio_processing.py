@@ -55,7 +55,7 @@ def blend_chunks(chunk1, chunk2, overlap):
 def process_audio_features(audio_features, model, device, config):
     # Configuration settings
     frame_length = config['frame_size']  # Number of frames per chunk (e.g., 64)
-    overlap = config.get('overlap', 6)  # Number of overlapping frames between chunks
+    overlap = config.get('overlap', 12)  # Number of overlapping frames between chunks
     num_features = audio_features.shape[1]
     num_frames = audio_features.shape[0]
     all_decoded_outputs = []
