@@ -36,58 +36,42 @@ def decode_audio_chunk(audio_chunk, model, device):
     return decoded_outputs
 
 def blend_chunks(chunk1, chunk2, overlap):
-    """Linearly blends the overlapping region between two chunks."""
-    # Adjust overlap if either chunk has fewer frames than overlap
     actual_overlap = min(overlap, len(chunk1), len(chunk2))
-    
-    # If actual_overlap is 0, return concatenation without blending
     if actual_overlap == 0:
         return np.vstack((chunk1, chunk2))
     
     blended_chunk = np.copy(chunk1)
     for i in range(actual_overlap):
-        alpha = i / actual_overlap  # Blend factor from 0 to 1
+        alpha = i / actual_overlap 
         blended_chunk[-actual_overlap + i] = (1 - alpha) * chunk1[-actual_overlap + i] + alpha * chunk2[i]
-    
-    # Combine blended chunk with non-overlapping part of chunk2
+        
     return np.vstack((blended_chunk, chunk2[actual_overlap:]))
 
 def process_audio_features(audio_features, model, device, config):
-    # Configuration settings
-    frame_length = config['frame_size']  # Number of frames per chunk (e.g., 64)
-    overlap = config.get('overlap', 16)  # Number of overlapping frames between chunks
+    frame_length = config['frame_size']  
+    overlap = config.get('overlap', 16) 
     num_features = audio_features.shape[1]
     num_frames = audio_features.shape[0]
     all_decoded_outputs = []
-    
-    # Set model to evaluation mode
+
     model.eval()
-    
-    # Process chunks with the specified overlap
     start_idx = 0
     while start_idx < num_frames:
         end_idx = min(start_idx + frame_length, num_frames)
-        
-        # Select and pad chunk if needed
         audio_chunk = audio_features[start_idx:end_idx]
         audio_chunk = pad_audio_chunk(audio_chunk, frame_length, num_features)
-        
-        # Decode the current audio chunk
         decoded_outputs = decode_audio_chunk(audio_chunk, model, device)
         decoded_outputs = decoded_outputs[:end_idx - start_idx]
         
-        # Blend with the last chunk if it exists
         if all_decoded_outputs:
             last_chunk = all_decoded_outputs.pop()
             blended_chunk = blend_chunks(last_chunk, decoded_outputs, overlap)
             all_decoded_outputs.append(blended_chunk)
         else:
             all_decoded_outputs.append(decoded_outputs)
-        
-        # Move start index forward by (frame_length - overlap)
+
         start_idx += frame_length - overlap
 
-    # Process any remaining frames to ensure total frame count matches input
     current_length = sum(len(chunk) for chunk in all_decoded_outputs)
     if current_length < num_frames:
         remaining_frames = num_frames - current_length
@@ -97,17 +81,11 @@ def process_audio_features(audio_features, model, device, config):
         decoded_outputs = decode_audio_chunk(audio_chunk, model, device)
         all_decoded_outputs.append(decoded_outputs[:remaining_frames])
 
-    # Concatenate all chunks and trim to the original frame count
     final_decoded_outputs = np.concatenate(all_decoded_outputs, axis=0)[:num_frames]
-    
-    # Normalize or apply any post-processing
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
-
     final_decoded_outputs[:, :61] /= 100  
-
     final_decoded_outputs = zero_columns(final_decoded_outputs)
-
-
+    
     return final_decoded_outputs
 
 def zero_columns(data):
