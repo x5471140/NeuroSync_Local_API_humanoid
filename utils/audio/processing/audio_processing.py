@@ -55,7 +55,7 @@ def blend_chunks(chunk1, chunk2, overlap):
 def process_audio_features(audio_features, model, device, config):
     # Configuration settings
     frame_length = config['frame_size']  # Number of frames per chunk (e.g., 64)
-    overlap = config.get('overlap', 12)  # Number of overlapping frames between chunks
+    overlap = config.get('overlap', 16)  # Number of overlapping frames between chunks
     num_features = audio_features.shape[1]
     num_frames = audio_features.shape[0]
     all_decoded_outputs = []
@@ -102,6 +102,16 @@ def process_audio_features(audio_features, model, device, config):
     
     # Normalize or apply any post-processing
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
+
     final_decoded_outputs[:, :61] /= 100  
 
+    final_decoded_outputs = zero_columns(final_decoded_outputs)
+
+
     return final_decoded_outputs
+
+def zero_columns(data):
+    columns_to_zero = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
+    modified_data = np.copy(data) 
+    modified_data[:, columns_to_zero] = 0
+    return modified_data
