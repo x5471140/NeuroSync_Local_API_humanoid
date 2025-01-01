@@ -30,10 +30,8 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
 def extract_and_combine_features(y, sr, frame_length, hop_length):
     all_features = []
 
-    mfcc_features, original_mfcc_frame_count = extract_mfcc_features(y, sr, frame_length, hop_length)
+    mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
     all_features.append(mfcc_features)
-    zcr_features = extract_zcr(y, frame_length, hop_length, original_mfcc_frame_count)
-    all_features.append(zcr_features) 
         
     combined_features = np.hstack(all_features)
 
