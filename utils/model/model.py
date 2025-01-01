@@ -21,128 +21,262 @@ def load_model(model_path, config, device):
     
     return model
 
+# -------------------------------------------------------------------------------------------
+# Global Positional Encoding
+# -------------------------------------------------------------------------------------------
+class GlobalPositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=10000, use_global_positional_encoding=True, use_rope=False):
+        super(GlobalPositionalEncoding, self).__init__()
+        self.use_global_positional_encoding = use_global_positional_encoding
+        self.use_rope = use_rope
+        self.d_model = d_model
 
-class Seq2Seq(nn.Module):
-    def __init__(self, encoder, decoder, device):
-        super(Seq2Seq, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.device = device
-    
-    def forward(self, src):
-        with torch.no_grad(): 
-            encoder_outputs = self.encoder(src)
-            output = self.decoder(encoder_outputs)
-        return output
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=1000):
-        super(PositionalEncoding, self).__init__()
-        pe = torch.zeros(max_len, d_model)  # Shape: (max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # Shape: (max_len, 1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)  # Apply sine to even indices
-        pe[:, 1::2] = torch.cos(position * div_term)  # Apply cosine to odd indices
-        pe = pe.unsqueeze(0)  # Shape: (1, max_len, d_model)
-        self.register_buffer('pe', pe)
+        if use_global_positional_encoding and not use_rope:
+            # Sinusoidal Positional Encoding
+            pe = torch.zeros(max_len, d_model)  # (max_len, d_model)
+            position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # (max_len, 1)
+            div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
+            pe[:, 0::2] = torch.sin(position * div_term)  # Sinusoidal encoding for even dimensions
+            pe[:, 1::2] = torch.cos(position * div_term)  # Cosine encoding for odd dimensions
+            pe = pe.unsqueeze(0)  # (1, max_len, d_model)
+            self.register_buffer('pe', pe)
 
     def forward(self, x):
-        # x shape: (batch_size, seq_len, d_model)
-        x = x + self.pe[:, :x.size(1), :]  # Adjust pe to match x's seq_len
+        if not self.use_global_positional_encoding:
+            return x  # No positional encoding
+
+        seq_len = x.size(1)
+        if self.use_rope:
+            # Apply RoPE-based Positional Encoding (Global)
+            position = torch.arange(seq_len, dtype=torch.float, device=x.device).unsqueeze(1)  # (seq_len, 1)
+            dim_indices = torch.arange(0, self.d_model, 2, dtype=torch.float, device=x.device)  # (d_model // 2)
+            div_term = torch.exp(-torch.log(torch.tensor(10000.0)) * dim_indices / self.d_model)
+
+            angle = position * div_term  # (seq_len, d_model // 2)
+            sin = torch.sin(angle).unsqueeze(0)  # (1, seq_len, d_model // 2)
+            cos = torch.cos(angle).unsqueeze(0)  # (1, seq_len, d_model // 2)
+
+            def rope_transform(embed):
+                x1, x2 = embed[..., ::2], embed[..., 1::2]  # Split into even and odd parts
+                x_rope_even = x1 * cos - x2 * sin
+                x_rope_odd = x1 * sin + x2 * cos
+                return torch.stack([x_rope_even, x_rope_odd], dim=-1).flatten(-2)
+
+            x = rope_transform(x)
+        else:
+            # Apply Sinusoidal Positional Encoding (Global)
+            x = x + self.pe[:, :seq_len]
         return x
 
 
-class Encoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_layers, num_heads, dropout=0, use_norm=False):
-        super(Encoder, self).__init__()
-        self.embedding = nn.Linear(input_dim, hidden_dim)
-        self.pos_encoder = PositionalEncoding(hidden_dim)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=num_heads, dropout=dropout, batch_first=True)  
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
-        self.use_norm = use_norm
-        self.layer_norm = nn.LayerNorm(hidden_dim)
 
-    def forward(self, x):
-        x = self.embedding(x)
-        x = self.pos_encoder(x)
-        outputs = self.transformer_encoder(x)
-        
-        if self.use_norm:
-            outputs = self.layer_norm(outputs)
-        
-        return outputs  
+# -------------------------------------------------------------------------------------------
+# Rotary Positional Embedding (RoPE) for Local Attention
+# -------------------------------------------------------------------------------------------
+def apply_rope_qk(q, k, use_local_positional_encoding=False):
+    if not use_local_positional_encoding:
+        return q, k  # Return unmodified q, k if RoPE is disabled
+
+    batch_size, num_heads, seq_len, head_dim = q.size()
+    assert head_dim % 2 == 0, "head_dim must be even for RoPE"
+
+    position = torch.arange(seq_len, dtype=torch.float, device=q.device).unsqueeze(1)  # (seq_len, 1)
+    dim_indices = torch.arange(0, head_dim, 2, dtype=torch.float, device=q.device)  # (head_dim // 2)
+    div_term = torch.exp(-torch.log(torch.tensor(10000.0)) * dim_indices / head_dim)
+
+    angle = position * div_term  # (seq_len, head_dim // 2)
+    sin = torch.sin(angle).unsqueeze(0).unsqueeze(0)  # (1, 1, seq_len, head_dim // 2)
+    cos = torch.cos(angle).unsqueeze(0).unsqueeze(0)  # (1, 1, seq_len, head_dim // 2)
+
+    def rope_transform(x):
+        x1, x2 = x[..., ::2], x[..., 1::2]  # Split into even and odd parts
+        x_rope_even = x1 * cos - x2 * sin
+        x_rope_odd = x1 * sin + x2 * cos
+        return torch.stack([x_rope_even, x_rope_odd], dim=-1).flatten(-2)
+
+    q = rope_transform(q)
+    k = rope_transform(k)
+    return q, k
 
 
-class Decoder(nn.Module):
-    def __init__(self, output_dim, hidden_dim, n_layers, num_heads, dropout=0, use_norm=False):
-        super(Decoder, self).__init__()
-        self.output_dim = output_dim
-        self.pos_encoder = PositionalEncoding(hidden_dim)
-        self.cross_attention = MultiHeadAttention(hidden_dim, num_heads)  
-        decoder_layer = nn.TransformerDecoderLayer(d_model=hidden_dim, nhead=num_heads, dropout=dropout, batch_first=True)  
-        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
-        self.fc_output = nn.Linear(hidden_dim, output_dim)
-        self.use_norm = use_norm
-        self.layer_norm = nn.LayerNorm(hidden_dim)
-
-    def forward(self, encoder_outputs):
-        input = self.pos_encoder(encoder_outputs)
-        cross_attn_output, _ = self.cross_attention(input, encoder_outputs, encoder_outputs)
-        decoder_input = input + cross_attn_output
-        decoder_output = self.transformer_decoder(decoder_input, encoder_outputs)
-        
-        if self.use_norm:
-            decoder_output = self.layer_norm(decoder_output)
-       
-        prediction = self.fc_output(decoder_output)
-        
-        return prediction
-
+# -------------------------------------------------------------------------------------------
+# Multi-Head Attention with optional RoPE
+# -------------------------------------------------------------------------------------------
 class MultiHeadAttention(nn.Module):
-    def __init__(self, hidden_dim, num_heads, dropout=0):
+    def __init__(self, hidden_dim, num_heads, dropout=0.0):
         super(MultiHeadAttention, self).__init__()
         assert hidden_dim % num_heads == 0, "Hidden dimension must be divisible by the number of heads"
-        self.num_heads = num_heads  # Number of attention heads
-        self.head_dim = hidden_dim // num_heads  # Dimension of each attention head
-        self.scaling = self.head_dim ** -0.5  # Scaling factor for dot product
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+        self.scaling = self.head_dim ** -0.5
 
-        self.q_linear = nn.Linear(hidden_dim, hidden_dim)  # Linear layer for query
-        self.k_linear = nn.Linear(hidden_dim, hidden_dim)  # Linear layer for key
-        self.v_linear = nn.Linear(hidden_dim, hidden_dim)  # Linear layer for value
-        self.out_linear = nn.Linear(hidden_dim, hidden_dim)  # Linear layer for output
+        self.q_linear = nn.Linear(hidden_dim, hidden_dim)
+        self.k_linear = nn.Linear(hidden_dim, hidden_dim)
+        self.v_linear = nn.Linear(hidden_dim, hidden_dim)
+        self.out_linear = nn.Linear(hidden_dim, hidden_dim)
 
-        self.attn_dropout = nn.Dropout(dropout)  # Dropout for attention weights
-        self.resid_dropout = nn.Dropout(dropout)  # Dropout for residual connection
-        self.dropout = dropout  # Dropout rate
+        self.attn_dropout = nn.Dropout(dropout)
+        self.resid_dropout = nn.Dropout(dropout)
+        self.dropout = dropout
 
-        self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')  # Check for flash attention support
+        self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.flash:
             print("WARNING: Flash Attention requires PyTorch >= 2.0")
 
     def forward(self, query, key, value, mask=None):
         batch_size = query.size(0)
 
-        query = self.q_linear(query)  # Apply linear layer to query
-        key = self.k_linear(key)  # Apply linear layer to key
-        value = self.v_linear(value)  # Apply linear layer to value
+        query = self.q_linear(query)
+        key = self.k_linear(key)
+        value = self.v_linear(value)
 
-        query = query.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)  # Reshape and transpose query
-        key = key.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)  # Reshape and transpose key
-        value = value.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)  # Reshape and transpose value
+        # Reshape to (B, H, L, D)
+        query = query.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        key   = key.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        value = value.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # Apply RoPE to Q and K (if enabled)
+        query, key = apply_rope_qk(query, key)
 
         if self.flash:
-            attn_output = torch.nn.functional.scaled_dot_product_attention(query, key, value, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query, key, value, attn_mask=mask, dropout_p=self.dropout if self.training else 0)
             attn_weights = None
         else:
-            scores = torch.matmul(query, key.transpose(-2, -1)) * self.scaling  # Compute attention scores
+            scores = torch.matmul(query, key.transpose(-2, -1)) * self.scaling
             if mask is not None:
-                scores = scores.masked_fill(mask == 0, float('-inf'))  # Apply mask to scores
-            attn_weights = F.softmax(scores, dim=-1)  # Compute attention weights
-            attn_weights = self.attn_dropout(attn_weights)  # Apply dropout to attention weights
-            attn_output = torch.matmul(attn_weights, value)  # Compute attention output
+                scores = scores.masked_fill(mask == 0, float('-inf'))
+            attn_weights = F.softmax(scores, dim=-1)
+            attn_weights = self.attn_dropout(attn_weights)
+            attn_output = torch.matmul(attn_weights, value)
 
-        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * self.head_dim)  # Reshape and transpose attention output
-        output = self.out_linear(attn_output)  # Apply linear layer to attention output
-        output = self.resid_dropout(output)  # Apply dropout to output       
-        
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * self.head_dim)
+        output = self.out_linear(attn_output)
+        output = self.resid_dropout(output)
+
         return output, attn_weights
+
+# -------------------------------------------------------------------------------------------
+# Feed-Forward Network
+# -------------------------------------------------------------------------------------------
+class FeedForwardNetwork(nn.Module):
+    def __init__(self, hidden_dim, dim_feedforward=2048, dropout=0.0):
+        super(FeedForwardNetwork, self).__init__()
+        self.linear1 = nn.Linear(hidden_dim, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, hidden_dim)
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.linear2(x)
+        return x
+
+# -------------------------------------------------------------------------------------------
+# Custom Transformer Encoder/Decoder
+# -------------------------------------------------------------------------------------------
+class CustomTransformerEncoderLayer(nn.Module):
+    def __init__(self, hidden_dim, num_heads, dropout=0.0):
+        super(CustomTransformerEncoderLayer, self).__init__()
+        self.self_attn = MultiHeadAttention(hidden_dim, num_heads, dropout)
+        self.ffn = FeedForwardNetwork(hidden_dim, 4 * hidden_dim, dropout)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, src, mask=None):
+        src2, _ = self.self_attn(src, src, src, mask)
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        src2 = self.ffn(src)
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        return src
+
+class CustomTransformerDecoderLayer(nn.Module):
+    def __init__(self, hidden_dim, num_heads, dropout=0.0):
+        super(CustomTransformerDecoderLayer, self).__init__()
+        self.self_attn = MultiHeadAttention(hidden_dim, num_heads, dropout)
+        self.multihead_attn = MultiHeadAttention(hidden_dim, num_heads, dropout)
+        self.ffn = FeedForwardNetwork(hidden_dim, 4 * hidden_dim, dropout)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.norm3 = nn.LayerNorm(hidden_dim)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+    def forward(self, tgt, memory, tgt_mask=None, memory_mask=None):
+        tgt2, _ = self.self_attn(tgt, tgt, tgt, tgt_mask)
+        tgt = tgt + self.dropout1(tgt2)
+        tgt = self.norm1(tgt)
+
+        tgt2, _ = self.multihead_attn(tgt, memory, memory, memory_mask)
+        tgt = tgt + self.dropout2(tgt2)
+        tgt = self.norm2(tgt)
+
+        tgt2 = self.ffn(tgt)
+        tgt = tgt + self.dropout3(tgt2)
+        tgt = self.norm3(tgt)
+        return tgt
+
+# -------------------------------------------------------------------------------------------
+# Encoder with Global Positional Encoding
+# -------------------------------------------------------------------------------------------
+class Encoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim, n_layers, num_heads, dropout=0.0, use_norm=True):
+        super(Encoder, self).__init__()
+        self.embedding = nn.Linear(input_dim, hidden_dim)
+        self.global_pos_encoder = GlobalPositionalEncoding(hidden_dim)
+        self.transformer_encoder = nn.ModuleList([
+            CustomTransformerEncoderLayer(hidden_dim, num_heads, dropout) for _ in range(n_layers)
+        ])
+        self.layer_norm = nn.LayerNorm(hidden_dim) if use_norm else None
+
+    def forward(self, x):
+        x = self.embedding(x)
+        x = self.global_pos_encoder(x)
+        for layer in self.transformer_encoder:
+            x = layer(x)
+        if self.layer_norm:
+            x = self.layer_norm(x)
+        return x
+
+# -------------------------------------------------------------------------------------------
+# Decoder with Global Positional Encoding
+# -------------------------------------------------------------------------------------------
+class Decoder(nn.Module):
+    def __init__(self, output_dim, hidden_dim, n_layers, num_heads, dropout=0.0, use_norm=True):
+        super(Decoder, self).__init__()
+        self.global_pos_encoder = GlobalPositionalEncoding(hidden_dim)
+        self.transformer_decoder = nn.ModuleList([
+            CustomTransformerDecoderLayer(hidden_dim, num_heads, dropout) for _ in range(n_layers)
+        ])
+        self.fc_output = nn.Linear(hidden_dim, output_dim)
+        self.layer_norm = nn.LayerNorm(hidden_dim) if use_norm else None
+
+    def forward(self, encoder_outputs):
+        x = self.global_pos_encoder(encoder_outputs)
+        for layer in self.transformer_decoder:
+            x = layer(x, encoder_outputs)
+        if self.layer_norm:
+            x = self.layer_norm(x)
+        return self.fc_output(x)
+
+# -------------------------------------------------------------------------------------------
+# Seq2Seq Model
+# -------------------------------------------------------------------------------------------
+class Seq2Seq(nn.Module):
+    def __init__(self, encoder, decoder, device):
+        super(Seq2Seq, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.device = device
+
+    def forward(self, src):
+        encoder_outputs = self.encoder(src)
+        output = self.decoder(encoder_outputs)
+        return output
