@@ -5,7 +5,7 @@
 
 import numpy as np
 from utils.audio.load_audio import load_and_preprocess_audio, load_audio_from_bytes
-from utils.audio.extraction.extract_features_utils import extract_mfcc_features, extract_zcr
+from utils.audio.extraction.extract_features_utils import extract_mfcc_features
 
 def extract_audio_features(audio_input, sr=88200, from_bytes=False):
     if from_bytes:
@@ -23,16 +23,11 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
         print(f"Audio file is too short: {num_frames} frames, required: {min_frames} frames")
         return None, None
 
-    combined_features = extract_and_combine_features(y, sr, frame_length, hop_length)
-    
-    return combined_features, y
-
-def extract_and_combine_features(y, sr, frame_length, hop_length):
     all_features = []
 
     mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
     all_features.append(mfcc_features)
         
     combined_features = np.hstack(all_features)
-
-    return combined_features
+    
+    return combined_features, y
