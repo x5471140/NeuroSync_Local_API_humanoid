@@ -43,7 +43,7 @@ def cepstral_mean_variance_normalization(mfcc):
     std = np.std(mfcc, axis=1, keepdims=True)
     return (mfcc - mean) / (std + 1e-10)
 
-def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length, ):
+def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length):
     mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc + 1, n_fft=frame_length, hop_length=hop_length)
     mfcc = cepstral_mean_variance_normalization(mfcc)
     mfcc = mfcc[1:] 
