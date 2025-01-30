@@ -84,12 +84,12 @@ def process_audio_features(audio_features, model, device, config):
     final_decoded_outputs = np.concatenate(all_decoded_outputs, axis=0)[:num_frames]
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
     final_decoded_outputs[:, :61] /= 100  
-#    final_decoded_outputs = zero_columns(final_decoded_outputs) 
+    final_decoded_outputs = zero_columns(final_decoded_outputs) 
     # you can zero problematic columns if needed.
     return final_decoded_outputs
 
 def zero_columns(data):
-    columns_to_zero = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 41, 42, 44, 45, 44 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
+    columns_to_zero = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 41, 42, 44, 45, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
     modified_data = np.copy(data) 
     modified_data[:, columns_to_zero] = 0
     return modified_data
