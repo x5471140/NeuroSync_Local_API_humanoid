@@ -42,9 +42,9 @@ def cepstral_mean_variance_normalization(mfcc):
     return (mfcc - mean) / (std + 1e-10)
 
 def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length):
-    mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc + 1, n_fft=frame_length, hop_length=hop_length)
+    mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc, n_fft=frame_length, hop_length=hop_length) #  + 1 num_mfcc and removing 0th was a mistake. Get a new model if this broke yours
     mfcc = cepstral_mean_variance_normalization(mfcc)
-    mfcc = mfcc[1:] 
+    # mfcc = mfcc[1:] 
     delta_mfcc = librosa.feature.delta(mfcc)
     delta2_mfcc = librosa.feature.delta(mfcc, order=2)
     combined_mfcc = np.vstack([mfcc, delta_mfcc, delta2_mfcc])
