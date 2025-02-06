@@ -84,7 +84,7 @@ def process_audio_features(audio_features, model, device, config):
     final_decoded_outputs = np.concatenate(all_decoded_outputs, axis=0)[:num_frames]
     final_decoded_outputs = ensure_2d(final_decoded_outputs)
     final_decoded_outputs[:, :61] /= 100  
-    final_decoded_outputs = zero_columns(final_decoded_outputs) 
+#    final_decoded_outputs = zero_columns(final_decoded_outputs) 
     # you can zero problematic columns if needed.
     return final_decoded_outputs
 
