@@ -1,5 +1,7 @@
 # NeuroSync Local API
 
+## NEW : [Train your own model](https://github.com/AnimaVR/NeuroSync_Trainer_Lite)
+
 ## 01/01/25 Model + code updates
 
 The final version of the 0.01 model has been added. V0.02 is due february with a new architecture.
