@@ -12,9 +12,9 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
     else:
         y, sr = load_and_preprocess_audio(audio_input, sr)
     
-    frame_length = int(0.01667 * sr)  
-    hop_length = frame_length // 2  
-    min_frames = 9  
+    frame_length = int(0.01667 * sr)  # Frame length set to 0.01667 seconds (~60 fps)
+    hop_length = frame_length // 2  # 2x overlap for smoother transitions
+    min_frames = 9  # Minimum number of frames needed for delta calculation
 
     num_frames = (len(y) - frame_length) // hop_length + 1
 
@@ -22,14 +22,32 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
         print(f"Audio file is too short: {num_frames} frames, required: {min_frames} frames")
         return None, None
 
-    all_features = []
-
-    mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
-    all_features.append(mfcc_features)
-        
-    combined_features = np.hstack(all_features)
+    combined_features = extract_and_combine_features(y, sr, frame_length, hop_length)
     
     return combined_features, y
+
+def extract_and_combine_features(y, sr, frame_length, hop_length, apply_smoothing=False, include_autocorr=True):
+   
+    all_features = []
+    
+    # 1) MFCC as baseline
+    mfcc_features, _ = extract_mfcc_features(y, sr, frame_length, hop_length)
+    all_features.append(mfcc_features)
+    
+    # 2) Autocorrelation
+    if include_autocorr:
+        autocorr_features = extract_autocorrelation_features(
+            y, sr, frame_length, hop_length
+        )
+        all_features.append(autocorr_features)
+    
+    combined_features = np.hstack(all_features)
+
+    if apply_smoothing:
+        combined_features = smooth_features(combined_features)
+
+    return combined_features
+
 
 def extract_mfcc_features(y, sr, frame_length, hop_length, num_mfcc=23):
     mfcc_features = extract_overlapping_mfcc(y, sr, num_mfcc, frame_length, hop_length)
@@ -64,6 +82,62 @@ def reduce_features(features):
     return reduced_final_features
 
 
+def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_coeff=187,
+                                 pad_signal=True, padding_mode="reflect", trim_padded=False):
+    if pad_signal:
+        pad = frame_length // 2
+        y_padded = np.pad(y, pad_width=pad, mode=padding_mode)
+    else:
+        y_padded = y
+
+    frames = librosa.util.frame(y_padded, frame_length=frame_length, hop_length=hop_length)
+    
+    if pad_signal and trim_padded:
+        num_frames = frames.shape[1]
+        start_indices = np.arange(num_frames) * hop_length
+        valid_idx = np.where((start_indices >= pad) & (start_indices + frame_length <= len(y) + pad))[0]
+        frames = frames[:, valid_idx]
+
+    frames = frames - np.mean(frames, axis=0, keepdims=True)
+    
+    hann_window = np.hanning(frame_length)
+    windowed_frames = frames * hann_window[:, np.newaxis]
+    
+    autocorr_list = []
+    for frame in windowed_frames.T:
+        full_corr = np.correlate(frame, frame, mode='full')
+        mid = frame_length - 1 
+        wanted = full_corr[mid: mid + num_autocorr_coeff]
+        if wanted[0] != 0:
+            wanted = wanted / wanted[0]
+        autocorr_list.append(wanted)
+
+    autocorr_features = np.array(autocorr_list).T
+    return autocorr_features
+
+
+
+
+def extract_autocorrelation_features(
+    y, sr, frame_length, hop_length, include_deltas=False
+):
+    autocorr_features = extract_overlapping_autocorr(
+        y, sr, frame_length, hop_length
+    )
+    
+    if include_deltas:
+        autocorr_features = compute_autocorr_with_deltas(autocorr_features)
+
+    autocorr_features_reduced = reduce_features(autocorr_features)
+
+    return autocorr_features_reduced.T
+
+
+def compute_autocorr_with_deltas(autocorr_base):
+    delta_ac = librosa.feature.delta(autocorr_base)
+    delta2_ac = librosa.feature.delta(autocorr_base, order=2)
+    combined_autocorr = np.vstack([autocorr_base, delta_ac, delta2_ac])
+    return combined_autocorr
 
 def load_and_preprocess_audio(audio_path, sr=88200):
     y, sr = load_audio(audio_path, sr)
