@@ -6,6 +6,6 @@ config = {
     'num_heads': 4,
     'dropout': 0.0,
     'output_dim': 68, # if you trained your own, this should be 61
-    'input_dim': 69,
+    'input_dim': 256,
     'frame_size': 128, 
 }
