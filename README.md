@@ -1,8 +1,8 @@
-# NeuroSync Open Source Audio2Face Local API
+# NeuroSync Local API
 
 ## NEW : [Train your own model](https://github.com/AnimaVR/NeuroSync_Trainer_Lite)
 
-## 08/02/25 Model + code updates
+## 08/02/25 Open Source Audio2Face Model + code updates
 
 The first version of the 0.02 model has been added. 
 
