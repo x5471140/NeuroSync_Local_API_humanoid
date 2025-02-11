@@ -95,30 +95,7 @@ def reduce_features(features):
 
 def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_coeff=187,
                                  pad_signal=True, padding_mode="reflect", trim_padded=False):
-    """
-    Extract overlapping autocorrelation features from an audio signal.
-    
-    Parameters:
-        y (np.ndarray): Input 1-D audio signal.
-        sr (int): Sample rate.
-        frame_length (int): Length of each frame in samples.
-        hop_length (int): Number of samples between the start of consecutive frames.
-        num_autocorr_coeff (int): Number of autocorrelation coefficients to extract.
-        pad_signal (bool): If True, pad the signal with half the frame length on each side.
-                           This ensures that even edge frames are full-length.
-        padding_mode (str): Padding mode passed to np.pad (e.g. "reflect", "constant", etc.).
-        trim_padded (bool): If True, remove frames that include padded data from the output.
-        
-    Returns:
-        np.ndarray: Autocorrelation features with shape (num_autocorr_coeff, num_valid_frames),
-                    where only frames computed entirely on the original signal are included.
-    
-    Explanation:
-        Padding is necessary to ensure that every frame is the correct length for analysis.
-        However, frames at the edges will include padded data and might cause artifacts or skipping.
-        By trimming out those frames (using the trim_padded flag), we ensure that only frames
-        computed from actual data are returned.
-    """
+   
      # Pad the signal if desired.
     if pad_signal:
         pad = frame_length // 2
