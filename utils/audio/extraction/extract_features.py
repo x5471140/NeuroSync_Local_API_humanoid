@@ -32,7 +32,7 @@ def extract_and_combine_features(y, sr, frame_length, hop_length, apply_smoothin
     all_features = []
     
     # 1) MFCC as baseline
-    mfcc_features, _ = extract_mfcc_features(y, sr, frame_length, hop_length)
+    mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
     all_features.append(mfcc_features)
     
     # 2) Autocorrelation
@@ -60,14 +60,23 @@ def cepstral_mean_variance_normalization(mfcc):
     std = np.std(mfcc, axis=1, keepdims=True)
     return (mfcc - mean) / (std + 1e-10)
 
-def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length):
-    mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc, n_fft=frame_length, hop_length=hop_length) #  + 1 num_mfcc and removing 0th was a mistake. Get a new model if this broke yours
-    mfcc = cepstral_mean_variance_normalization(mfcc)
-    # mfcc = mfcc[1:] 
-    delta_mfcc = librosa.feature.delta(mfcc)
-    delta2_mfcc = librosa.feature.delta(mfcc, order=2)
-    combined_mfcc = np.vstack([mfcc, delta_mfcc, delta2_mfcc])
-    return combined_mfcc    
+
+def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length, include_deltas=True, include_cepstral=True, threshold=1e-5):
+    # Compute one extra MFCC to include the 0th coefficient
+    mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc, n_fft=frame_length, hop_length=hop_length)
+    
+    # Optionally apply cepstral mean and variance normalization
+    if include_cepstral:
+        mfcc = cepstral_mean_variance_normalization(mfcc)
+
+    if include_deltas:
+        delta_mfcc = librosa.feature.delta(mfcc)
+        delta2_mfcc = librosa.feature.delta(mfcc, order=2)
+        combined_mfcc = np.vstack([mfcc, delta_mfcc, delta2_mfcc])  # Stack original MFCCs with deltas
+        return combined_mfcc
+    else:
+        return mfcc
+
 
 def reduce_features(features):
     num_frames = features.shape[1]
@@ -83,8 +92,33 @@ def reduce_features(features):
     return reduced_final_features
 
 
+
 def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_coeff=187,
                                  pad_signal=True, padding_mode="reflect", trim_padded=False):
+    """
+    Extract overlapping autocorrelation features from an audio signal.
+    
+    Parameters:
+        y (np.ndarray): Input 1-D audio signal.
+        sr (int): Sample rate.
+        frame_length (int): Length of each frame in samples.
+        hop_length (int): Number of samples between the start of consecutive frames.
+        num_autocorr_coeff (int): Number of autocorrelation coefficients to extract.
+        pad_signal (bool): If True, pad the signal with half the frame length on each side.
+                           This ensures that even edge frames are full-length.
+        padding_mode (str): Padding mode passed to np.pad (e.g. "reflect", "constant", etc.).
+        trim_padded (bool): If True, remove frames that include padded data from the output.
+        
+    Returns:
+        np.ndarray: Autocorrelation features with shape (num_autocorr_coeff, num_valid_frames),
+                    where only frames computed entirely on the original signal are included.
+    
+    Explanation:
+        Padding is necessary to ensure that every frame is the correct length for analysis.
+        However, frames at the edges will include padded data and might cause artifacts or skipping.
+        By trimming out those frames (using the trim_padded flag), we ensure that only frames
+        computed from actual data are returned.
+    """
      # Pad the signal if desired.
     if pad_signal:
         pad = frame_length // 2
@@ -135,9 +169,14 @@ def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_c
 
 
 
+
 def extract_autocorrelation_features(
     y, sr, frame_length, hop_length, include_deltas=False
 ):
+    """
+    Extract autocorrelation features, optionally with deltas/delta-deltas,
+    then align with the MFCC frame count, reduce, and handle first/last frames.
+    """
     autocorr_features = extract_overlapping_autocorr(
         y, sr, frame_length, hop_length
     )
