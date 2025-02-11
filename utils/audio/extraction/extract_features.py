@@ -30,12 +30,9 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
 def extract_and_combine_features(y, sr, frame_length, hop_length, apply_smoothing=False, include_autocorr=True):
    
     all_features = []
-    
-    # 1) MFCC as baseline
     mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
     all_features.append(mfcc_features)
-    
-    # 2) Autocorrelation
+
     if include_autocorr:
         autocorr_features = extract_autocorrelation_features(
             y, sr, frame_length, hop_length
@@ -62,10 +59,7 @@ def cepstral_mean_variance_normalization(mfcc):
 
 
 def extract_overlapping_mfcc(chunk, sr, num_mfcc, frame_length, hop_length, include_deltas=True, include_cepstral=True, threshold=1e-5):
-    # Compute one extra MFCC to include the 0th coefficient
     mfcc = librosa.feature.mfcc(y=chunk, sr=sr, n_mfcc=num_mfcc, n_fft=frame_length, hop_length=hop_length)
-    
-    # Optionally apply cepstral mean and variance normalization
     if include_cepstral:
         mfcc = cepstral_mean_variance_normalization(mfcc)
 
@@ -93,38 +87,26 @@ def reduce_features(features):
 
 
 
-def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_coeff=187,
-                                 pad_signal=True, padding_mode="reflect", trim_padded=False):
-   
-     # Pad the signal if desired.
+def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_coeff=187, pad_signal=True, padding_mode="reflect", trim_padded=False):
     if pad_signal:
         pad = frame_length // 2
         y_padded = np.pad(y, pad_width=pad, mode=padding_mode)
     else:
         y_padded = y
 
-    # Frame the (padded) signal.
     frames = librosa.util.frame(y_padded, frame_length=frame_length, hop_length=hop_length)
-
-    # Optionally trim frames that come from padded regions.
     if pad_signal and trim_padded:
         num_frames = frames.shape[1]
-        # The starting index of each frame in the padded signal.
         start_indices = np.arange(num_frames) * hop_length
-        # A frame is fully valid if it lies entirely within the region [pad, len(y)+pad).
         valid_idx = np.where((start_indices >= pad) & (start_indices + frame_length <= len(y) + pad))[0]
         frames = frames[:, valid_idx]
 
-    # Remove DC offset per frame.
     frames = frames - np.mean(frames, axis=0, keepdims=True)
-
-    # Apply Hann window.
     hann_window = np.hanning(frame_length)
     windowed_frames = frames * hann_window[:, np.newaxis]
 
     autocorr_list = []
     for frame in windowed_frames.T:
-        # Compute full autocorrelation for this frame.
         full_corr = np.correlate(frame, frame, mode='full')
         mid = frame_length - 1  # Zero-lag index.
         # Extract `num_autocorr_coeff + 1` to include the first column initially
@@ -136,16 +118,10 @@ def extract_overlapping_autocorr(y, sr, frame_length, hop_length, num_autocorr_c
 
     # Convert list to array and transpose so that shape is (num_autocorr_coeff + 1, num_valid_frames)
     autocorr_features = np.array(autocorr_list).T
-
     # Remove the first coefficient to avoid redundancy
     autocorr_features = autocorr_features[1:, :]
 
     return autocorr_features
-
-
-
-
-
 
 def extract_autocorrelation_features(
     y, sr, frame_length, hop_length, include_deltas=False
