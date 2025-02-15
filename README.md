@@ -1,5 +1,9 @@
 # NeuroSync Local API
 
+## 15/02/2025 update enables Rope + local/global positional encoding
+
+Update your model from huggingface, or train a new one using rope and global/local positioning (set bools to true in model.py)
+
 ## NEW : [Train your own model](https://github.com/AnimaVR/NeuroSync_Trainer_Lite)
 
 ## 08/02/25 Open Source Audio2Face Model + code updates
