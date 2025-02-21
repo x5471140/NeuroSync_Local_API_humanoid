@@ -2,7 +2,7 @@
 
 ### **21/02/2025 Scaling UP! | New 228m parameter model + config added**
 
-[Get the model on Huggingface](https://github.com/AnimaVR/NeuroSync_Trainer_Lite](https://huggingface.co/AnimaVR/NEUROSYNC_Audio_To_Face_Blendshape/)
+[Get the model on Huggingface](https://huggingface.co/AnimaVR/NEUROSYNC_Audio_To_Face_Blendshape/)
 
 A milestone has been hit and previous research has got us to a point where scaling the model up is now possible with much faster training and better quality overall.
 
