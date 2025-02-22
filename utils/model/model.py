@@ -24,19 +24,15 @@ def load_model(model_path, config, device, use_half_precision=True):
     print(f"🖥️ Device type: {device.type}")
 
     if use_half_precision and device.type == 'cuda':
-        # Convert model parameters and buffers to float16
-        model = model.half()
-        for layer in model.modules():
-            if isinstance(layer, torch.nn.Linear):
-                layer.weight.data = layer.weight.data.half()  # Convert weights
-                if layer.bias is not None:
-                    layer.bias.data = layer.bias.data.half()  # Convert biases
-        print("⚡ Model and all layers converted to half-precision (float16).")
+        model = model.to(torch.float16)
+        print("⚡ Model converted to float16 (half-precision).")
     else:
         print("🚫 Half-precision not applied (CPU or unsupported GPU).")
 
     model.eval()
     return model
+
+
 
 
 # -------------------------------------------------------------------------------------------
