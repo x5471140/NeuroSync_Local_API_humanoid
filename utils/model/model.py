@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def load_model(model_path, config, device, use_full_precision=False):
+def load_model(model_path, config, device, use_half_precision=True):
     device = torch.device(device)  # Ensure device is properly set
 
     hidden_dim = config['hidden_dim']
