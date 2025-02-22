@@ -11,15 +11,19 @@ from torch.cuda.amp import autocast
 def decode_audio_chunk(audio_chunk, model, device, config):
     # Use precision based on config
     use_half_precision = config.get("use_half_precision", True)
-    dtype = torch.float32 if not use_half_precision else torch.bfloat16
+    
+    # Force bfloat16 if half precision is desired; else float32
+    dtype = torch.float16 if use_half_precision else torch.float32
 
-    # Convert audio chunk directly to the desired precision and move to GPU
+    # Convert audio chunk directly to the desired precision
     src_tensor = torch.tensor(audio_chunk, dtype=dtype).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        # Only use autocast for mixed precision when not using full precision
         if use_half_precision:
-            with autocast():
+
+            with autocast(dtype=torch.float16):
+                print("🔍 decode_audio_chunk: Autocast using bfloat16")
+                print(f"   src_tensor dtype: {src_tensor.dtype}")
                 encoder_outputs = model.encoder(src_tensor)
                 output_sequence = model.decoder(encoder_outputs)
         else:
@@ -28,7 +32,6 @@ def decode_audio_chunk(audio_chunk, model, device, config):
 
         # Convert output tensor back to numpy array
         decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
-
     return decoded_outputs
 
 
