@@ -8,4 +8,5 @@ config = {
     'output_dim': 68, # if you trained your own, this should also be 61
     'input_dim': 256,
     'frame_size': 128, 
+    "use_full_precision": False
 }
