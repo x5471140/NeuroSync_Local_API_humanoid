@@ -1,5 +1,9 @@
 # NeuroSync Local API
 
+### **22/02/2025 Half!!!**
+
+Precision... for faster inference.
+
 ### **21/02/2025 Scaling UP! | New 228m parameter model + config added**
 
 [Get the model on Huggingface](https://huggingface.co/AnimaVR/NEUROSYNC_Audio_To_Face_Blendshape/)
