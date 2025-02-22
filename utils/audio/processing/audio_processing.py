@@ -6,6 +6,20 @@
 
 import numpy as np
 import torch
+from torch.cuda.amp import autocast
+
+def decode_audio_chunk(audio_chunk, model, device):
+    src_tensor = torch.tensor(audio_chunk, dtype=torch.float16).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        with autocast():
+            encoder_outputs = model.encoder(src_tensor)
+            output_sequence = model.decoder(encoder_outputs)
+
+        decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
+
+    return decoded_outputs
+
 
 def concatenate_outputs(all_decoded_outputs, num_frames):
     final_decoded_outputs = np.concatenate(all_decoded_outputs, axis=0)
@@ -28,13 +42,6 @@ def pad_audio_chunk(audio_chunk, frame_length, num_features):
         audio_chunk = np.vstack((audio_chunk, padding[-pad_length:, :num_features]))
     return audio_chunk
 
-def decode_audio_chunk(audio_chunk, model, device):
-    src_tensor = torch.tensor(audio_chunk, dtype=torch.float32).unsqueeze(0).to(device)
-    with torch.no_grad():
-        encoder_outputs = model.encoder(src_tensor)
-        output_sequence = model.decoder(encoder_outputs)
-        decoded_outputs = output_sequence.squeeze(0).cpu().numpy()
-    return decoded_outputs
 
 def blend_chunks(chunk1, chunk2, overlap):
     actual_overlap = min(overlap, len(chunk1), len(chunk2))
