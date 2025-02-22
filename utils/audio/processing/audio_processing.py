@@ -22,8 +22,6 @@ def decode_audio_chunk(audio_chunk, model, device, config):
         if use_half_precision:
 
             with autocast(dtype=torch.float16):
-                print("🔍 decode_audio_chunk: Autocast using bfloat16")
-                print(f"   src_tensor dtype: {src_tensor.dtype}")
                 encoder_outputs = model.encoder(src_tensor)
                 output_sequence = model.decoder(encoder_outputs)
         else:
