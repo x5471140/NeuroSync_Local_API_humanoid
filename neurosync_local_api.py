@@ -10,6 +10,7 @@ from utils.config import config
 app = flask.Flask(__name__)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print("Activated device:", device)
 
 model_path = 'utils/model/model.pth'
 blendshape_model = load_model(model_path, config, device)
