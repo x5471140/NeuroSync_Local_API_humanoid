@@ -12,7 +12,7 @@ def decode_audio_chunk(audio_chunk, model, device, config):
     # Use precision based on config
     use_half_precision = config.get("use_half_precision", True)
     
-    # Force bfloat16 if half precision is desired; else float32
+    # Force float16 if half precision is desired; else float32
     dtype = torch.float16 if use_half_precision else torch.float32
 
     # Convert audio chunk directly to the desired precision
