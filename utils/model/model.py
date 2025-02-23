@@ -21,8 +21,6 @@ def load_model(model_path, config, device, use_half_precision=True):
     state_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(state_dict, strict=True)
 
-    print(f"🖥️ Device type: {device.type}")
-
     if use_half_precision and device.type == 'cuda':
         model = model.to(torch.float16)
         print("⚡ Model converted to float16 (half-precision).")
