@@ -120,7 +120,7 @@ def process_audio_features(audio_features, model, device, config):
     final_decoded_outputs[:, :61] /= 100  # Normalize specific columns
 
     # Easing effect for smooth start (fades in first 0.2 seconds)
-    ease_duration_frames = min(int(0.2 * 60), final_decoded_outputs.shape[0])
+    ease_duration_frames = min(int(0.1 * 60), final_decoded_outputs.shape[0])
     easing_factors = np.linspace(0, 1, ease_duration_frames)[:, None]
     final_decoded_outputs[:ease_duration_frames] *= easing_factors
 
