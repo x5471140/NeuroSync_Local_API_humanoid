@@ -7,13 +7,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def load_model(model_path, config, device, use_half_precision=True):
-    device = torch.device(device)  # Ensure device is properly set
+def load_model(model_path, config, device):
+    
+    device = torch.device(device) 
 
     hidden_dim = config['hidden_dim']
     n_layers = config['n_layers']
     num_heads = config['num_heads']
-
+    use_half_precision = config['use_half_precision')
+    
     encoder = Encoder(config['input_dim'], hidden_dim, n_layers, num_heads)
     decoder = Decoder(config['output_dim'], hidden_dim, n_layers, num_heads)
     model = Seq2Seq(encoder, decoder, device).to(device)
