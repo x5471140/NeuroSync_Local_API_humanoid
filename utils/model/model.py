@@ -25,7 +25,6 @@ def load_model(model_path, config, device):
     n_layers = config['n_layers']
     num_heads = config['num_heads']
     
-    # Assume Encoder, Decoder, and Seq2Seq are defined elsewhere.
     encoder = Encoder(config['input_dim'], hidden_dim, n_layers, num_heads)
     decoder = Decoder(config['output_dim'], hidden_dim, n_layers, num_heads)
     model = Seq2Seq(encoder, decoder, device).to(device)
