@@ -6,16 +6,26 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-
 def load_model(model_path, config, device):
     device = torch.device(device)
+    
+    # Retrieve the half precision setting from the config
+    use_half_precision = config.get('use_half_precision', True)
+    
+    # 🔥 NEW: Check for CUDA and cuDNN availability.
+    # If half precision is requested but CUDA or cuDNN are not available,
+    # fall back to full precision and update the config.
+    if use_half_precision:
+        if not (device.type == 'cuda' and torch.cuda.is_available() and torch.backends.cudnn.enabled):
+            print("⚠ Half-precision requested but CUDA or cuDNN not available. Falling back to full precision.")
+            use_half_precision = False
+            config['use_half_precision'] = False  # Update config to reflect the fallback
 
     hidden_dim = config['hidden_dim']
     n_layers = config['n_layers']
     num_heads = config['num_heads']
-    use_half_precision = config.get('use_half_precision', True)
-
+    
+    # Assume Encoder, Decoder, and Seq2Seq are defined elsewhere.
     encoder = Encoder(config['input_dim'], hidden_dim, n_layers, num_heads)
     decoder = Decoder(config['output_dim'], hidden_dim, n_layers, num_heads)
     model = Seq2Seq(encoder, decoder, device).to(device)
@@ -23,19 +33,16 @@ def load_model(model_path, config, device):
     state_dict = torch.load(model_path, map_location=device)
     model.load_state_dict(state_dict, strict=True)
 
-    # Ensure CUDA and cuDNN compatibility before applying half precision
+    # Convert the model to half precision if applicable
     if use_half_precision and device.type == 'cuda':
-        if torch.cuda.is_available() and torch.backends.cudnn.is_available():
-            model = model.to(torch.float16)
-            print("⚡ Model converted to float16 (half-precision).")
-        else:
-            print("⚠️ CUDA/cuDNN not available. Falling back to full precision.")
-            use_half_precision = False
+        model = model.to(torch.float16)
+        print("⚡ Model converted to float16 (half-precision).")
     else:
-        print("🚫 Half-precision not applied (CPU detected or disabled in config).")
+        print("🚫 Half-precision not applied (CPU or unsupported GPU or False set in config).")
 
     model.eval()
     return model
+
 
 
 
