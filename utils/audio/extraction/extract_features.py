@@ -10,10 +10,14 @@ import scipy.signal
 
 
 def extract_audio_features(audio_input, sr=88200, from_bytes=False):
-    if from_bytes:
-        y, sr = load_audio_from_bytes(audio_input, sr)
-    else:
-        y, sr = load_and_preprocess_audio(audio_input, sr)
+    try:
+        if from_bytes:
+            y, sr = load_audio_from_bytes(audio_input, sr)
+        else:
+            y, sr = load_and_preprocess_audio(audio_input, sr)
+    except Exception as e:
+            print(f"Loading as WAV failed: {e}\nFalling back to PCM loading.")
+            y, sr = load_pcm_audio_from_bytes(audio_input, sr)  
     
     frame_length = int(0.01667 * sr)  # Frame length set to 0.01667 seconds (~60 fps)
     hop_length = frame_length // 2  # 2x overlap for smoother transitions
