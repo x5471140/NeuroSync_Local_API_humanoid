@@ -33,7 +33,7 @@ def extract_audio_features(audio_input, sr=88200, from_bytes=False):
     
     return combined_features, y
 
-def extract_and_combine_features(y, sr, frame_length, hop_length, apply_smoothing=False, include_autocorr=True):
+def extract_and_combine_features(y, sr, frame_length, hop_length, include_autocorr=True):
    
     all_features = []
     mfcc_features = extract_mfcc_features(y, sr, frame_length, hop_length)
@@ -46,9 +46,6 @@ def extract_and_combine_features(y, sr, frame_length, hop_length, apply_smoothin
         all_features.append(autocorr_features)
     
     combined_features = np.hstack(all_features)
-
-    if apply_smoothing:
-        combined_features = smooth_features(combined_features)
 
     return combined_features
 
