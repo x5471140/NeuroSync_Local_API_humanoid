@@ -1,9 +1,5 @@
 # NeuroSync Local API
 
-### **22/02/2025 Half!!!**
-
-Precision... for faster inference. This requires CUDA toolkit + CUDNN. If you dont have these, it defaults to CPU and full precision and will be slower than if you run it on GPU.
-
 ## Talk to a NeuroSync prototype live on Twitch : [Visit Mai](https://www.twitch.tv/mai_anima_ai)
 
 ## Overview
