@@ -1,7 +1,5 @@
 # NeuroSync Local API
 
-## Talk to a NeuroSync prototype live on Twitch : [Visit Mai](https://www.twitch.tv/mai_anima_ai)
-
 ## Overview
 
 The **NeuroSync Local API** allows you to host the audio-to-face blendshape transformer model locally. This API processes audio data and outputs facial blendshape coefficients, which can be streamed directly to Unreal Engine using the **NeuroSync Player** and LiveLink.
@@ -25,3 +23,5 @@ You can find the NeuroSync Player and instructions on setting it up here:
 - [NeuroSync Player GitHub Repository](https://github.com/AnimaVR/NeuroSync_Player)
 
 Visit [neurosync.info](https://neurosync.info)
+
+## Talk to a NeuroSync prototype live on Twitch : [Visit Mai](https://www.twitch.tv/mai_anima_ai)
